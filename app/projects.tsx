@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Project, getProjects, initDatabase } from "../services/database";
 import NewProjectModal from "../components/NewProjectModal";
 import { router } from "expo-router";
+import ProjectActionsSheet from "../components/ProjectActionsSheet";
 
 const Projects = () => {
   const { isDarkMode } = useTheme();
@@ -20,6 +21,8 @@ const Projects = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [isActionsVisible, setIsActionsVisible] = useState(false);
 
   const loadProjects = async () => {
     try {
@@ -83,11 +86,19 @@ const Projects = () => {
             {item.status}
           </Text>
         </View>
-        <Ionicons
-          name="ellipsis-horizontal"
-          size={24}
-          color={isDarkMode ? "#fff" : "#000"}
-        />
+        <TouchableOpacity
+          style={styles.moreButton}
+          onPress={() => {
+            setSelectedProject(item);
+            setIsActionsVisible(true);
+          }}
+        >
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={24}
+            color={isDarkMode ? "#fff" : "#666"}
+          />
+        </TouchableOpacity>
       </View>
 
       <Text style={[styles.projectTitle, isDarkMode && styles.darkText]}>
@@ -190,6 +201,18 @@ const Projects = () => {
         onClose={() => setIsModalVisible(false)}
         onProjectAdded={handleProjectAdded}
       />
+
+      {selectedProject && (
+        <ProjectActionsSheet
+          project={selectedProject}
+          isVisible={isActionsVisible}
+          onClose={() => {
+            setIsActionsVisible(false);
+            setSelectedProject(null);
+          }}
+          onProjectDeleted={loadProjects}
+        />
+      )}
     </View>
   );
 };
@@ -339,5 +362,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
+  },
+  moreButton: {
+    padding: 8,
+    position: "absolute",
+    right: 12,
+    top: 12,
+    zIndex: 1,
   },
 });

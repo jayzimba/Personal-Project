@@ -145,3 +145,17 @@ export const updateTaskStatus = async (
     throw error;
   }
 };
+
+export const deleteProject = async (projectId: number): Promise<boolean> => {
+  const database = await getDb();
+  try {
+    await database.runAsync("DELETE FROM tasks WHERE project_id = ?", [
+      projectId,
+    ]);
+    await database.runAsync("DELETE FROM projects WHERE id = ?", [projectId]);
+    return true;
+  } catch (error) {
+    console.error("Error deleting project:", error);
+    return false;
+  }
+};

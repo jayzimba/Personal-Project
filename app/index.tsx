@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
+  RefreshControl,
 } from "react-native";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import BottomSheet from "@gorhom/bottom-sheet";
@@ -50,6 +51,17 @@ export default function Home() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isSelectProjectModalVisible, setIsSelectProjectModalVisible] =
     useState(false);
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadAllStats();
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const handleProjectAdded = async () => {
     const loadAllStats = async () => {
@@ -131,6 +143,16 @@ export default function Home() {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#f4511e"]}
+            tintColor={isDarkMode ? "#fff" : "#f4511e"}
+            titleColor={isDarkMode ? "#fff" : "#666"}
+            title="Pull to refresh"
+          />
+        }
       >
         <View style={styles.header}>
           <Text style={[styles.greeting, isDarkMode && styles.darkText]}>

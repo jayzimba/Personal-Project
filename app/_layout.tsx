@@ -4,6 +4,9 @@ import { StatusBar } from "expo-status-bar";
 import { ThemeProvider, useTheme } from "../context/ThemeContext";
 import { TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useState, useEffect } from "react";
+import { initDatabase } from "../services/database";
+import LoadingScreen from "../components/LoadingScreen";
 
 function ThemeToggleButton() {
   const { isDarkMode, toggleTheme } = useTheme();
@@ -17,6 +20,30 @@ function ThemeToggleButton() {
 
 function LayoutContent() {
   const { isDarkMode } = useTheme();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const initApp = async () => {
+      try {
+        console.log("Starting app initialization...");
+        await initDatabase();
+        console.log("Database initialized");
+
+        // Show loading screen for at least 2 seconds
+        await new Promise((resolve) => setTimeout(resolve, 3500));
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error during initialization:", error);
+        setIsLoading(false);
+      }
+    };
+
+    initApp();
+  }, []);
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
