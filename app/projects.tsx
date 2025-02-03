@@ -6,14 +6,16 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Project, getProjects, initDatabase } from "../services/database";
 import NewProjectModal from "../components/NewProjectModal";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import ProjectActionsSheet from "../components/ProjectActionsSheet";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 
 const Projects = () => {
   const { isDarkMode } = useTheme();
@@ -23,6 +25,7 @@ const Projects = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isActionsVisible, setIsActionsVisible] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadProjects = async () => {
     try {
@@ -67,6 +70,33 @@ const Projects = () => {
         return "#FFC107";
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadProjects();
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadData = async () => {
+        setIsLoading(true);
+        try {
+          await loadProjects();
+        } catch (error) {
+          console.error("Error refreshing projects:", error);
+          setError("Failed to load projects");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      loadData();
+    }, [])
+  );
 
   const renderProject = ({ item }: { item: Project }) => (
     <TouchableOpacity
@@ -193,6 +223,16 @@ const Projects = () => {
           renderItem={renderProject}
           keyExtractor={(item) => item.id?.toString() || ""}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#f4511e"]}
+              tintColor={isDarkMode ? "#fff" : "#f4511e"}
+              titleColor={isDarkMode ? "#fff" : "#666"}
+              title="Pull to refresh"
+            />
+          }
         />
       )}
 

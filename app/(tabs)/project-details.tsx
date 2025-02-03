@@ -4,6 +4,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useTheme } from "../../context/ThemeContext";
@@ -13,16 +14,24 @@ import {
   getProjectTasks,
   Task,
   updateTaskStatus,
+  updateProjectStatus,
 } from "../../services/database";
 import TaskModal from "../../components/TaskModal";
-
+import { useRouter } from "expo-router";
+import TaskActionsSheet from "../../components/TaskActionsSheet";
+import TaskEditModal from "../../components/TaskEditModal";
+import FontAwesome from "@expo/vector-icons/FontAwesome";
 export default function ProjectDetails() {
   const { isDarkMode } = useTheme();
   const params = useLocalSearchParams<{ project: string }>();
   const project = JSON.parse(params.project);
+  const router = useRouter();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isTaskModalVisible, setIsTaskModalVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isTaskActionsVisible, setIsTaskActionsVisible] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
 
   const loadTasks = async () => {
     try {
@@ -36,6 +45,12 @@ export default function ProjectDetails() {
   useEffect(() => {
     loadTasks();
   }, [project.id]);
+
+  const canCompleteProject = (tasks: Task[]) => {
+    return (
+      tasks.length > 0 && tasks.every((task) => task.status === "completed")
+    );
+  };
 
   return (
     <ScrollView style={[styles.container, isDarkMode && styles.darkContainer]}>
@@ -97,6 +112,25 @@ export default function ProjectDetails() {
             </Text>
           </View>
         </View>
+
+        <View style={styles.actionButtons}>
+          {canCompleteProject(tasks) && project.status !== "completed" && (
+            <TouchableOpacity
+              style={styles.completeButton}
+              onPress={async () => {
+                try {
+                  await updateProjectStatus(project.id!);
+                  // Refresh project data
+                  router.replace("/projects");
+                } catch (error) {
+                  Alert.alert("Error", "Failed to update project status");
+                }
+              }}
+            >
+              <Text style={styles.completeButtonText}>Mark as Completed</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <View style={styles.taskSection}>
@@ -119,12 +153,10 @@ export default function ProjectDetails() {
           >
             <TouchableOpacity
               style={styles.taskCheckbox}
-              onPress={() =>
-                updateTaskStatus(
-                  task.id!,
-                  task.status === "completed" ? "pending" : "completed"
-                )
-              }
+              onPress={() => {
+                setSelectedTask(task);
+                setIsTaskActionsVisible(true);
+              }}
             >
               <Ionicons
                 name={
@@ -163,9 +195,56 @@ export default function ProjectDetails() {
                 </Text>
               )}
             </View>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => {
+                setSelectedTask(task);
+                setIsEditModalVisible(true);
+              }}
+            >
+              <FontAwesome
+                name="edit"
+                size={20}
+                color={isDarkMode ? "#fff" : "#666"}
+              />
+            </TouchableOpacity>
           </View>
         ))}
       </View>
+
+      {selectedTask && (
+        <TaskActionsSheet
+          task={selectedTask}
+          isVisible={isTaskActionsVisible}
+          onClose={() => {
+            setIsTaskActionsVisible(false);
+            if (!isEditModalVisible) {
+              setSelectedTask(null);
+            }
+          }}
+          onTaskUpdated={loadTasks}
+          onEditTask={() => {
+            setIsTaskActionsVisible(false);
+            setTimeout(() => {
+              setIsEditModalVisible(true);
+            }, 300);
+          }}
+        />
+      )}
+
+      <TaskEditModal
+        task={selectedTask!}
+        visible={isEditModalVisible}
+        onClose={() => {
+          setIsEditModalVisible(false);
+          setSelectedTask(null);
+        }}
+        onTaskUpdated={() => {
+          loadTasks();
+          setIsEditModalVisible(false);
+          setSelectedTask(null);
+        }}
+      />
 
       <TaskModal
         visible={isTaskModalVisible}
@@ -311,9 +390,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f0f0f0",
     borderRadius: 8,
+    marginBottom: 5,
   },
   darkTaskCard: {
     borderColor: "#333",
+    marginBottom: 5,
   },
   taskCheckbox: {
     padding: 8,
@@ -332,5 +413,26 @@ const styles = StyleSheet.create({
   taskDueDate: {
     fontSize: 12,
     color: "#999",
+  },
+  actionButtons: {
+    marginTop: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  completeButton: {
+    backgroundColor: "#4CAF50",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  completeButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  editButton: {
+    padding: 8,
+    marginLeft: 8,
   },
 });

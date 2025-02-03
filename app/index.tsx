@@ -9,11 +9,15 @@ import {
 } from "react-native";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import BottomSheet from "@gorhom/bottom-sheet";
-import { Link } from "expo-router";
+import { Link, useFocusEffect, router } from "expo-router";
 import { useTheme } from "../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { LineChart } from "react-native-chart-kit";
-import { getProjects } from "../services/database";
+import {
+  getProjects,
+  getTasksDueToday,
+  getProjectsWithTaskProgress,
+} from "../services/database";
 import NewProjectModal from "../components/NewProjectModal";
 import SelectProjectModal from "../components/SelectProjectModal";
 
@@ -64,61 +68,52 @@ export default function Home() {
   }, []);
 
   const handleProjectAdded = async () => {
-    const loadAllStats = async () => {
-      try {
-        const projects = await getProjects();
-        const stats = {
-          ongoing: projects.filter((p) => p.status === "ongoing").length,
-          completed: projects.filter((p) => p.status === "completed").length,
-          planned: projects.filter((p) => p.status === "planned").length,
-          totalProgress:
-            projects.reduce((acc, curr) => acc + curr.progress, 0) /
-            (projects.length || 1),
-        };
-        setProjectStats(stats);
+    await loadAllStats();
+  };
 
-        setDashboardStats({
-          activeProjects: projects.filter((p) => p.status === "ongoing").length,
-          tasksDue: projects.filter((p) => p.progress < 100).length,
-          completed: projects.filter((p) => p.status === "completed").length,
-        });
-      } catch (error) {
-        console.error("Error refreshing stats:", error);
-      }
-    };
+  const loadAllStats = async () => {
+    try {
+      const { projects, averageProgress } = await getProjectsWithTaskProgress();
+      const tasksDueToday = await getTasksDueToday();
 
-    loadAllStats();
+      // Update project stats for the graph
+      const stats = {
+        ongoing: projects.filter((p) => p.status === "ongoing").length,
+        completed: projects.filter((p) => p.status === "completed").length,
+        planned: projects.filter((p) => p.status === "planned").length,
+        totalProgress: averageProgress,
+      };
+      setProjectStats(stats);
+
+      // Update dashboard stats
+      setDashboardStats({
+        activeProjects: projects.filter((p) => p.status === "ongoing").length,
+        tasksDue: tasksDueToday,
+        completed: projects.filter((p) => p.status === "completed").length,
+      });
+    } catch (error) {
+      console.error("Error loading stats:", error);
+    }
   };
 
   useEffect(() => {
-    const loadAllStats = async () => {
-      try {
-        const projects = await getProjects();
-
-        // Update project stats for the graph
-        const stats = {
-          ongoing: projects.filter((p) => p.status === "ongoing").length,
-          completed: projects.filter((p) => p.status === "completed").length,
-          planned: projects.filter((p) => p.status === "planned").length,
-          totalProgress:
-            projects.reduce((acc, curr) => acc + curr.progress, 0) /
-            (projects.length || 1),
-        };
-        setProjectStats(stats);
-
-        // Update dashboard stats
-        setDashboardStats({
-          activeProjects: projects.filter((p) => p.status === "ongoing").length,
-          tasksDue: projects.filter((p) => p.progress < 100).length,
-          completed: projects.filter((p) => p.status === "completed").length,
-        });
-      } catch (error) {
-        console.error("Error loading stats:", error);
-      }
-    };
-
     loadAllStats();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadData = async () => {
+        setRefreshing(true);
+        try {
+          await loadAllStats();
+        } finally {
+          setRefreshing(false);
+        }
+      };
+
+      loadData();
+    }, [])
+  );
 
   const statsCards = [
     {
@@ -127,12 +122,12 @@ export default function Home() {
       icon: "folder-open",
     },
     {
-      title: "Tasks Due",
+      title: "Tasks Due Today",
       value: dashboardStats.tasksDue.toString(),
       icon: "time",
     },
     {
-      title: "Completed",
+      title: "Completed Projects",
       value: dashboardStats.completed.toString(),
       icon: "checkmark-circle",
     },
@@ -150,7 +145,7 @@ export default function Home() {
             colors={["#f4511e"]}
             tintColor={isDarkMode ? "#fff" : "#f4511e"}
             titleColor={isDarkMode ? "#fff" : "#666"}
-            title="Pull to refresh"
+            title="Pull down to refresh"
           />
         }
       >
@@ -165,13 +160,18 @@ export default function Home() {
 
         <View style={styles.statsContainer}>
           {statsCards.map((stat, index) => (
-            <View
+            <TouchableOpacity
               key={index}
               style={[
                 styles.statCard,
                 isDarkMode && styles.darkStatCard,
                 { marginRight: index < statsCards.length - 1 ? 12 : 0 },
               ]}
+              onPress={() => {
+                if (stat.title === "Tasks Due Today") {
+                  router.push("/today-tasks");
+                }
+              }}
             >
               <Ionicons
                 name={stat.icon as any}
@@ -189,7 +189,7 @@ export default function Home() {
               >
                 {stat.title}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
@@ -219,6 +219,23 @@ export default function Home() {
             <Ionicons name="list" size={24} color="white" />
             <Text style={styles.actionButtonText}>Add Task</Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.progressSection}>
+          <Text style={[styles.progressTitle, isDarkMode && styles.darkText]}>
+            Overall Progress
+          </Text>
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progress,
+                { width: `${projectStats.totalProgress}%` },
+              ]}
+            />
+          </View>
+          <Text style={[styles.progressText, isDarkMode && styles.darkText]}>
+            {projectStats.totalProgress}%
+          </Text>
         </View>
 
         <View style={styles.chartSection}>
@@ -560,5 +577,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     textAlign: "center",
+  },
+  progressSection: {
+    marginTop: 24,
+    marginBottom: 24,
+  },
+  progressTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: 10,
+    backgroundColor: "#f0f0f0",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  progress: {
+    height: "100%",
+    backgroundColor: "#f4511e",
+    borderRadius: 10,
+  },
+  progressText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginTop: 8,
   },
 });

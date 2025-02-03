@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Modal, View, StyleSheet, TouchableOpacity, Text } from "react-native";
+import {
+  Modal,
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  Alert,
+} from "react-native";
 import { useTheme } from "../context/ThemeContext";
-import { Project, getProjects } from "../services/database";
+import { Project, getProjects, addTask } from "../services/database";
 import DropDownPicker from "react-native-dropdown-picker";
 import { router } from "expo-router";
 
@@ -19,6 +26,10 @@ export default function SelectProjectModal({
   const [value, setValue] = useState(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [searchText, setSearchText] = useState("");
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [dueDate, setDueDate] = useState(new Date());
 
   useEffect(() => {
     loadProjects();
@@ -39,11 +50,37 @@ export default function SelectProjectModal({
   };
 
   const handleProjectSelect = (project: Project) => {
+    setSelectedProject(project);
     onClose();
     router.push({
       pathname: "/project-details",
       params: { project: JSON.stringify(project) },
     });
+  };
+
+  const handleAddTask = async () => {
+    if (!selectedProject || !taskTitle || !dueDate) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    try {
+      await addTask({
+        project_id: selectedProject.id!,
+        title: taskTitle,
+        description: taskDescription,
+        status: "pending",
+        due_date: dueDate.toISOString(),
+      });
+      onClose();
+      resetForm();
+    } catch (error) {
+      if (error instanceof Error) {
+        Alert.alert("Error", error.message);
+      } else {
+        Alert.alert("Error", "Failed to add task");
+      }
+    }
   };
 
   return (
@@ -70,10 +107,7 @@ export default function SelectProjectModal({
             placeholder="Select a project"
             searchTextInputProps={{
               maxLength: 40,
-              style: [
-                styles.searchInput,
-                isDarkMode && styles.darkSearchInput,
-              ],
+              style: [styles.searchInput, isDarkMode && styles.darkSearchInput],
             }}
             listMode="SCROLLVIEW"
             scrollViewProps={{

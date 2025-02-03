@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,12 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useTheme } from "../context/ThemeContext";
 import { Project, addProject } from "../services/database";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 interface NewProjectModalProps {
   visible: boolean;
@@ -30,28 +33,65 @@ export default function NewProjectModal({
     progress: 0,
     team: 1,
   });
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const resetForm = () => {
+    setProject({
+      title: "",
+      description: "",
+      status: "planned",
+      progress: 0,
+      team: 1,
+    });
+    setStartDate(new Date());
+    setEndDate(new Date());
+  };
 
   const handleSubmit = async () => {
+    if (!project.title || !project.description) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    if (endDate < startDate) {
+      Alert.alert("Error", "End date cannot be before start date");
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      if (!project.title) {
-        alert("Please enter a project title");
-        return;
-      }
-      await addProject(project as Project);
-      onProjectAdded();
-      onClose();
-      setProject({
-        title: "",
-        description: "",
+      const success = await addProject({
+        title: project.title,
+        description: project.description,
         status: "planned",
         progress: 0,
         team: 1,
+        start_date: startDate.toISOString(),
+        end_date: endDate.toISOString(),
       });
+
+      console.log("success", success);
+      if (!success) {
+        resetForm();
+        onClose();
+        await onProjectAdded();
+      }
     } catch (error) {
-      console.error("Error adding project:", error);
-      alert("Failed to add project");
+      Alert.alert("Error", "Failed to create project");
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!visible) {
+      resetForm();
+    }
+  }, [visible]);
 
   return (
     <Modal
@@ -106,6 +146,53 @@ export default function NewProjectModal({
               numberOfLines={4}
             />
 
+            <Text style={[styles.label, isDarkMode && styles.darkText]}>
+              Start Date
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowStartPicker(true)}
+              style={[styles.input, isDarkMode && styles.darkInput]}
+            >
+              <Text style={[styles.dateText, isDarkMode && styles.darkText]}>
+                {startDate.toLocaleDateString()}
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.label, isDarkMode && styles.darkText]}>
+              End Date
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowEndPicker(true)}
+              style={[styles.input, isDarkMode && styles.darkInput]}
+            >
+              <Text style={[styles.dateText, isDarkMode && styles.darkText]}>
+                {endDate.toLocaleDateString()}
+              </Text>
+            </TouchableOpacity>
+
+            {showStartPicker && (
+              <DateTimePicker
+                value={startDate}
+                mode="date"
+                onChange={(event, date) => {
+                  setShowStartPicker(false);
+                  if (date) setStartDate(date);
+                }}
+              />
+            )}
+
+            {showEndPicker && (
+              <DateTimePicker
+                value={endDate}
+                mode="date"
+                minimumDate={startDate}
+                onChange={(event, date) => {
+                  setShowEndPicker(false);
+                  if (date) setEndDate(date);
+                }}
+              />
+            )}
+
             <View style={styles.buttonContainer}>
               <TouchableOpacity
                 style={[styles.button, styles.cancelButton]}
@@ -114,10 +201,19 @@ export default function NewProjectModal({
                 <Text style={styles.buttonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.button, styles.submitButton]}
+                style={[
+                  styles.button,
+                  styles.submitButton,
+                  isSubmitting && styles.disabledButton,
+                ]}
                 onPress={handleSubmit}
+                disabled={isSubmitting}
               >
-                <Text style={styles.buttonText}>Create Project</Text>
+                {isSubmitting ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.buttonText}>Create Project</Text>
+                )}
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -193,5 +289,12 @@ const styles = StyleSheet.create({
   },
   darkText: {
     color: "#fff",
+  },
+  dateText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
 });

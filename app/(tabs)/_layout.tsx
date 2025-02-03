@@ -1,15 +1,31 @@
-import { Stack, Tabs } from "expo-router";
+import { Stack } from "expo-router";
 import { useTheme } from "../../context/ThemeContext";
-import { Ionicons } from "@expo/vector-icons";
 
 export default function TabLayout() {
   const { isDarkMode } = useTheme();
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="projects" />
-      <Stack.Screen name="project-details" />
+    <Stack
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: isDarkMode ? "#1a1a1a" : "#f4511e",
+        },
+        headerTintColor: "#fff",
+      }}
+    >
+      <Stack.Screen
+        name="index"
+        options={{
+          title: "Project Details",
+        }}
+      />
+      <Stack.Screen
+        name="project-details"
+        options={{
+          title: "Project Details",
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

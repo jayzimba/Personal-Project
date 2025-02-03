@@ -30,7 +30,7 @@ function LayoutContent() {
         console.log("Database initialized");
 
         // Show loading screen for at least 2 seconds
-        await new Promise((resolve) => setTimeout(resolve, 3500));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
         setIsLoading(false);
       } catch (error) {
         console.error("Error during initialization:", error);
@@ -79,6 +79,16 @@ function LayoutContent() {
           name="(tabs)"
           options={{
             title: "Details",
+          }}
+        />
+        <Stack.Screen
+          name="today-tasks"
+          options={{
+            title: "Today's Tasks",
+            headerStyle: {
+              backgroundColor: isDarkMode ? "#1a1a1a" : "#f4511e",
+            },
+            headerTintColor: "#fff",
           }}
         />
       </Stack>
